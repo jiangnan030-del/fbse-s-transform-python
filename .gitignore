@@ -116,3 +116,15 @@ tempCodeRunnerFile.py
 
 # Streamlit secrets
 .streamlit/secrets.toml
+
+# Data files (large datasets, zip archives, generated signals)
+data/*.zip
+data/*.mat
+data/*.npy
+data/*.npz
+
+# Output files (generated figures and arrays)
+outputs/
+
+# CatPaw temporary files
+.catpaw/
