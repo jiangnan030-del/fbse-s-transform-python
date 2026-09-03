@@ -1,13 +1,13 @@
 """Core FBSE-domain S-transform routines.
 
-This module implements a research-friendly version of the Fourier-Bessel
-domain S transform (FBSE-ST). The structure follows the method description
-in the project notes:
+This module implements a research-oriented version of the Fourier-Bessel
+domain S transform (FBSE-ST) following the four-step description on the
+project page:
 
-1. Compute Fourier-Bessel series expansion (FBSE) coefficients.
-2. Build a coefficient-domain Toeplitz matrix.
-3. Construct a frequency-adaptive Gaussian weighting matrix.
-4. Reconstruct the time-frequency representation through the Bessel basis.
+1. Compute the positive zeros of J0 and map them to a Bessel-frequency axis.
+2. Compute FBSE coefficients and organize them into a Toeplitz matrix.
+3. Apply a frequency-adaptive Gaussian weighting matrix in the coefficient domain.
+4. Reconstruct the time-frequency distribution through the Bessel basis.
 """
 
 from __future__ import annotations
@@ -53,8 +53,8 @@ def compute_adaptive_window_widths(
 ) -> np.ndarray:
     """Compute inverse-frequency Gaussian widths.
 
-    Lower pseudo-frequencies receive wider windows, while higher
-    pseudo-frequencies receive narrower windows.
+    This reflects the page description that low frequencies should have wider
+    windows and high frequencies should have narrower windows.
     """
     pseudo_frequencies = np.asarray(pseudo_frequencies, dtype=float)
     if pseudo_frequencies.ndim != 1:
@@ -63,8 +63,15 @@ def compute_adaptive_window_widths(
         raise ValueError("sigma_scale must be positive")
 
     widths = sigma_scale / np.maximum(pseudo_frequencies, min_width)
-    widths = np.maximum(widths, min_width)
-    return widths
+    return np.maximum(widths, min_width)
+
+
+def build_frequency_distance_matrix(pseudo_frequencies: np.ndarray) -> np.ndarray:
+    """Build pairwise Bessel-frequency distances."""
+    pseudo_frequencies = np.asarray(pseudo_frequencies, dtype=float)
+    if pseudo_frequencies.ndim != 1:
+        raise ValueError("pseudo_frequencies must be one-dimensional")
+    return pseudo_frequencies[None, :] - pseudo_frequencies[:, None]
 
 
 def build_frequency_adaptive_gaussian_window(
@@ -77,9 +84,9 @@ def build_frequency_adaptive_gaussian_window(
 ) -> np.ndarray:
     """Build the frequency-adaptive Gaussian weighting matrix.
 
-    The window is defined on the pseudo-frequency axis derived from the Bessel
-    zeros. Each row is centered at one pseudo-frequency and uses an adaptive
-    width inversely proportional to that pseudo-frequency.
+    Each row corresponds to one Bessel-frequency location. Its width is
+    inversely proportional to that center frequency, matching the adaptive
+    S-transform-style weighting described on the page.
     """
     pseudo_frequencies = compute_bessel_pseudo_frequencies(
         zeros,
@@ -91,25 +98,49 @@ def build_frequency_adaptive_gaussian_window(
         sigma_scale=sigma_scale,
         min_width=min_width,
     )
+    delta = build_frequency_distance_matrix(pseudo_frequencies)
 
-    delta = pseudo_frequencies[None, :] - pseudo_frequencies[:, None]
-    window = np.exp(-0.5 * (delta / widths[:, None]) ** 2)
+    normalization = 1.0 / (np.sqrt(2.0 * np.pi) * widths[:, None])
+    gaussian_window = normalization * np.exp(-0.5 * (delta / widths[:, None]) ** 2)
 
     if normalize_rows:
-        row_sums = np.sum(window, axis=1, keepdims=True)
+        row_sums = np.sum(gaussian_window, axis=1, keepdims=True)
         row_sums = np.maximum(row_sums, eps)
-        window = window / row_sums
+        gaussian_window = gaussian_window / row_sums
 
-    return window
+    return gaussian_window
 
 
-def build_toeplitz_from_coefficients(coefficients: np.ndarray) -> np.ndarray:
-    """Construct a Toeplitz matrix from FBSE coefficients."""
+def build_toeplitz_from_coefficients(
+    coefficients: np.ndarray,
+    mode: str = "page_style",
+) -> np.ndarray:
+    """Construct a Toeplitz matrix from FBSE coefficients.
+
+    Parameters
+    ----------
+    coefficients:
+        FBSE coefficient vector.
+    mode:
+        - ``"page_style"``: uses the coefficient vector as the first column and
+          ``[a0, 0, 0, ...]`` as the first row, matching the page description
+          that the Toeplitz matrix is generated from the first column.
+        - ``"hermitian"``: uses the conjugated coefficient vector as the first
+          row, which can be useful for alternative complex-valued experiments.
+    """
     coefficients = np.asarray(coefficients)
     if coefficients.ndim != 1:
         raise ValueError("coefficients must be one-dimensional")
 
-    return toeplitz(coefficients, np.conjugate(coefficients))
+    if mode == "page_style":
+        first_row = np.zeros_like(coefficients)
+        first_row[0] = coefficients[0]
+    elif mode == "hermitian":
+        first_row = np.conjugate(coefficients)
+    else:
+        raise ValueError("mode must be 'page_style' or 'hermitian'")
+
+    return toeplitz(coefficients, first_row)
 
 
 def apply_fbse_frequency_weighting(
@@ -118,9 +149,10 @@ def apply_fbse_frequency_weighting(
     signal_length: int | None = None,
     sigma_scale: float = 0.08,
     normalize_rows: bool = True,
+    toeplitz_mode: str = "page_style",
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Apply coefficient-domain Gaussian weighting."""
-    toeplitz_matrix = build_toeplitz_from_coefficients(coefficients)
+    toeplitz_matrix = build_toeplitz_from_coefficients(coefficients, mode=toeplitz_mode)
     gaussian_window = build_frequency_adaptive_gaussian_window(
         zeros,
         sigma_scale=sigma_scale,
@@ -134,6 +166,7 @@ def apply_fbse_frequency_weighting(
 def reconstruct_time_frequency(
     weighted_spectrum: np.ndarray,
     basis: np.ndarray,
+    normalize_output: bool = False,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Reconstruct complex, magnitude, and energy time-frequency matrices."""
     weighted_spectrum = np.asarray(weighted_spectrum)
@@ -149,6 +182,14 @@ def reconstruct_time_frequency(
     complex_tf = weighted_spectrum @ basis
     magnitude_tf = np.abs(complex_tf)
     energy_tf = magnitude_tf**2
+
+    if normalize_output:
+        max_value = np.max(energy_tf)
+        if max_value > 0:
+            magnitude_tf = magnitude_tf / np.sqrt(max_value)
+            energy_tf = energy_tf / max_value
+            complex_tf = complex_tf / np.sqrt(max_value)
+
     return complex_tf, magnitude_tf, energy_tf
 
 
@@ -157,6 +198,8 @@ def fbse_s_transform(
     num_zeros: int | None = None,
     sigma_scale: float = 0.08,
     normalize_window_rows: bool = True,
+    toeplitz_mode: str = "page_style",
+    normalize_output: bool = False,
 ) -> dict[str, np.ndarray]:
     """Compute the FBSE-domain S transform."""
     signal = np.asarray(signal)
@@ -188,10 +231,12 @@ def fbse_s_transform(
         signal_length=n,
         sigma_scale=sigma_scale,
         normalize_rows=normalize_window_rows,
+        toeplitz_mode=toeplitz_mode,
     )
     complex_time_frequency_matrix, time_frequency_matrix, energy_time_frequency_matrix = reconstruct_time_frequency(
         weighted_spectrum,
         basis,
+        normalize_output=normalize_output,
     )
 
     return {

@@ -6,6 +6,7 @@ from fbst.fbse import build_bessel_basis, compute_fbse_coefficients
 from fbst.transform import (
     apply_fbse_frequency_weighting,
     build_frequency_adaptive_gaussian_window,
+    build_frequency_distance_matrix,
     build_toeplitz_from_coefficients,
     compute_adaptive_window_widths,
     compute_bessel_pseudo_frequencies,
@@ -43,6 +44,13 @@ def test_adaptive_widths_decrease_with_frequency() -> None:
     assert widths[0] > widths[1] > widths[2]
 
 
+def test_frequency_distance_matrix_shape() -> None:
+    pseudo_frequencies = np.array([0.2, 0.5, 1.0])
+    delta = build_frequency_distance_matrix(pseudo_frequencies)
+    assert delta.shape == (3, 3)
+    assert np.allclose(np.diag(delta), 0.0)
+
+
 def test_gaussian_window_shape_and_row_normalization() -> None:
     zeros = np.array([2.4048255577, 5.5200781103, 8.6537279129])
     window = build_frequency_adaptive_gaussian_window(
@@ -56,9 +64,17 @@ def test_gaussian_window_shape_and_row_normalization() -> None:
     assert np.allclose(window.sum(axis=1), 1.0)
 
 
-def test_toeplitz_shape() -> None:
+def test_toeplitz_page_style_shape() -> None:
     coefficients = np.array([1 + 0j, 2 + 1j, 3 - 1j])
-    matrix = build_toeplitz_from_coefficients(coefficients)
+    matrix = build_toeplitz_from_coefficients(coefficients, mode="page_style")
+    assert matrix.shape == (3, 3)
+    assert matrix[0, 0] == coefficients[0]
+    assert matrix[0, 1] == 0
+
+
+def test_toeplitz_hermitian_shape() -> None:
+    coefficients = np.array([1 + 0j, 2 + 1j, 3 - 1j])
+    matrix = build_toeplitz_from_coefficients(coefficients, mode="hermitian")
     assert matrix.shape == (3, 3)
 
 
@@ -72,6 +88,7 @@ def test_apply_fbse_frequency_weighting_shapes() -> None:
         signal_length=16,
         sigma_scale=0.08,
         normalize_rows=True,
+        toeplitz_mode="page_style",
     )
     assert toeplitz_matrix.shape == (3, 3)
     assert gaussian_window.shape == (3, 3)
@@ -88,6 +105,7 @@ def test_reconstruct_time_frequency_shapes() -> None:
         signal_length=16,
         sigma_scale=0.08,
         normalize_rows=True,
+        toeplitz_mode="page_style",
     )
     complex_tf, magnitude_tf, energy_tf = reconstruct_time_frequency(weighted_spectrum, basis)
     assert complex_tf.shape == (3, 16)
