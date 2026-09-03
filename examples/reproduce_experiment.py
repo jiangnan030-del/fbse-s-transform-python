@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 
@@ -15,6 +16,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from fbst.metrics import compare_energy_maps
 from fbst.transform import fbse_s_transform
 from fbst.visualization import plot_fbse_stft_comparison
 
@@ -56,6 +58,12 @@ def main() -> None:
         normalize_output=True,
     )
     stft_energy = compute_stft_energy(signal)
+    metrics = compare_energy_maps(
+        fbse_result["energy_time_frequency_matrix"],
+        stft_energy,
+        top_k_ratio=0.05,
+        renyi_order=3.0,
+    )
 
     plot_fbse_stft_comparison(
         signal,
@@ -76,9 +84,14 @@ def main() -> None:
         stft_energy=stft_energy,
     )
 
+    with open(output_dir / "comparison_metrics.json", "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2, ensure_ascii=False)
+
     print("Experiment completed.")
     print(f"Comparison figure: {output_dir / 'fbse_st_vs_stft.png'}")
     print(f"Saved arrays:      {output_dir / 'fbse_st_vs_stft.npz'}")
+    print(f"Saved metrics:     {output_dir / 'comparison_metrics.json'}")
+    print(json.dumps(metrics, indent=2, ensure_ascii=False))
     plt.show()
 
 

@@ -2,6 +2,14 @@
 
 from .bessel import compute_bessel_zeros
 from .fbse import build_bessel_basis, compute_fbse_coefficients
+from .metrics import (
+    compare_energy_maps,
+    energy_concentration_ratio,
+    hoyer_sparsity,
+    normalize_energy_map,
+    renyi_entropy,
+    summarize_energy_map,
+)
 from .transform import (
     apply_fbse_frequency_weighting,
     build_frequency_adaptive_gaussian_window,
@@ -23,6 +31,12 @@ __all__ = [
     "compute_bessel_zeros",
     "build_bessel_basis",
     "compute_fbse_coefficients",
+    "normalize_energy_map",
+    "energy_concentration_ratio",
+    "renyi_entropy",
+    "hoyer_sparsity",
+    "summarize_energy_map",
+    "compare_energy_maps",
     "compute_bessel_pseudo_frequencies",
     "compute_adaptive_window_widths",
     "build_frequency_distance_matrix",
