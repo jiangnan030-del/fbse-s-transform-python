@@ -1,100 +1,175 @@
-# FBSE S-Transform Python
+# fbse-s-transform-python
 
 Python implementation of the **Fourier-Bessel domain S transform (FBSE-ST)** for energy-adaptive time-frequency analysis of non-stationary signals.
 
 ## Overview
 
-This project is intended to reproduce and extend the method described in the current notes page: a time-frequency analysis framework that combines:
+This repository implements a research-oriented workflow inspired by the method described on the project page:
 
-- **Fourier-Bessel series expansion (FBSE)** for compact spectral representation
-- **S-transform-style adaptive Gaussian windows** for frequency-dependent resolution
-- **Inverse Bessel-basis reconstruction** for obtaining a concentrated time-frequency representation
+- **Fourier-Bessel series expansion (FBSE)** for sparse coefficient representation
+- **S-transform-style adaptive Gaussian weighting** in the Bessel-frequency domain
+- **Inverse Bessel-basis reconstruction** for concentrated time-frequency analysis
+- **STFT comparison workflow** for baseline evaluation
 
-The method is especially suitable for **non-stationary signals** with transient or time-varying frequency content.
+The current codebase is designed as a transparent **research prototype** rather than a finalized benchmark package. It is suitable for algorithm development, exploratory experiments, figure generation, and further mathematical refinement.
 
-## Why this project is useful
+## Current repository capabilities
 
-Traditional short-time Fourier analysis faces a fixed resolution trade-off between time and frequency. The FBSE-domain S transform aims to improve energy concentration by:
+The repository currently includes:
 
-- preserving better low-/high-frequency adaptive resolution
-- reducing spectral leakage around instantaneous-frequency ridges
-- improving interpretability for transient, impulsive, and non-stationary signals
-
-Potential application areas include:
-
-- mechanical vibration analysis
-- speech processing
-- biomedical signal analysis
-- general non-stationary time-frequency analysis research
+- computation of positive zeros of the zero-order Bessel function
+- construction of the Bessel basis matrix
+- computation of FBSE coefficients
+- coefficient-domain Toeplitz matrix construction
+- frequency-adaptive Gaussian weighting in the Bessel domain
+- reconstruction of complex, magnitude, and energy time-frequency matrices
+- synthetic-signal demos
+- **FBSE-ST vs STFT** comparison experiment
+- figure export and array export workflows
+- a Jupyter notebook for interactive testing
+- basic unit tests
 
 ## Method pipeline
 
-The implementation follows four main steps:
+The implementation follows four main steps.
 
-1. **Compute zeros of the zero-order Bessel function** using Newton iteration.
-2. **Build the Bessel basis matrix** and compute FBSE coefficients.
-3. **Construct a frequency-adaptive Gaussian window matrix** and perform coefficient-domain weighting.
-4. **Reconstruct the time-frequency matrix** through inverse mapping with the Bessel basis.
+### Step 1. Compute Bessel zeros
 
-## Project goals
+The method first computes the positive zeros of the zero-order Bessel function \(J_0(x)\), then maps them to a monotonic pseudo-frequency axis.
 
-- Implement the FBSE-domain S transform in Python
-- Provide reusable functions for each stage of the algorithm
-- Offer examples on synthetic non-stationary signals
-- Visualize high-resolution time-frequency representations
-- Create a clean baseline for future experiments and comparisons
+### Step 2. Compute FBSE coefficients
 
-## Getting started
+Given a signal \(x[n]\), the code builds a Bessel basis matrix and computes its Fourier-Bessel expansion coefficients.
 
-### Recommended environment
+### Step 3. Apply adaptive Gaussian weighting
 
-- Python 3.10+
-- NumPy
-- SciPy
-- Matplotlib
+A Toeplitz matrix is constructed from the FBSE coefficient vector, then multiplied elementwise by a frequency-adaptive Gaussian window matrix. This step is intended to concentrate leaked energy around the target Bessel-frequency locations.
 
-### Install dependencies
+### Step 4. Reconstruct the time-frequency representation
 
-```bash
-pip install numpy scipy matplotlib
-```
+The weighted coefficient-domain matrix is projected back through the Bessel basis to obtain the final complex, magnitude, and energy time-frequency distributions.
 
-### Planned structure
+## Mathematical notes
+
+A stricter formulation note is included here:
+
+- `docs/method_formulation.md`
+
+That document explains the current matrix interpretation used by the implementation, including:
+
+- pseudo-frequency mapping
+- adaptive Gaussian widths
+- Toeplitz construction choice
+- reconstruction step
+- relation to the page-style four-step method description
+
+## Project structure
 
 ```text
 fbse-s-transform-python/
 ├── README.md
 ├── LICENSE
-├── .gitignore
+├── pyproject.toml
+├── requirements.txt
+├── requirements-dev.txt
+├── docs/
+│   └── method_formulation.md
 ├── src/
-│   ├── bessel_zeros.py
-│   ├── fbse.py
-│   ├── windowing.py
-│   └── fbse_st.py
-└── examples/
-    └── demo_signal.py
+│   └── fbst/
+│       ├── __init__.py
+│       ├── bessel.py
+│       ├── fbse.py
+│       ├── transform.py
+│       └── visualization.py
+├── examples/
+│   ├── demo_signal.py
+│   └── reproduce_experiment.py
+├── notebooks/
+│   └── fbse_st_demo.ipynb
+└── tests/
+    ├── test_bessel.py
+    └── test_transform.py
 ```
 
-## Minimal code idea
+## Installation
 
-The current method notes already include core logic for:
+### Minimal install
 
-- computing Bessel zeros
-- constructing the Bessel basis matrix
-- computing FBSE coefficients
+```bash
+git clone https://github.com/jiangnan030-del/fbse-s-transform-python.git
+cd fbse-s-transform-python
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-The next implementation step is to organize these pieces into reusable Python modules and add example scripts for visualization.
+### Development install
 
-## Help and maintenance
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
 
-Maintainer: **jiangnan**
+## Quick start
 
-If you use this repository for research development, you can extend it with:
+### Run the demo
 
-- benchmark datasets or synthetic test signals
-- comparisons with STFT, synchrosqueezing, or related methods
-- notebook demos and figure reproduction scripts
+```bash
+python examples/demo_signal.py
+```
+
+This generates a synthetic non-stationary signal and computes its FBSE-ST representation.
+
+### Run the reproducible comparison experiment
+
+```bash
+python examples/reproduce_experiment.py
+```
+
+This script will:
+
+- generate a synthetic signal
+- compute the FBSE-ST result
+- compute an STFT baseline
+- save a comparison figure
+- save arrays to an `.npz` file
+
+Default outputs:
+
+- `outputs/repro_experiment/fbse_st_vs_stft.png`
+- `outputs/repro_experiment/fbse_st_vs_stft.npz`
+
+### Run the notebook
+
+Open:
+
+- `notebooks/fbse_st_demo.ipynb`
+
+The notebook includes an interactive FBSE-ST and STFT comparison workflow.
+
+## Notes on the current implementation
+
+This repository currently implements a **research-friendly approximation** of the method description. In particular:
+
+- the Bessel-frequency axis is represented as a pseudo-frequency axis derived from Bessel zeros
+- the Gaussian weighting is implemented as an inverse-frequency adaptive window
+- the Toeplitz construction includes a `page_style` mode intended to follow the wording of the page description more closely
+- the code is structured to make future formula-level refinement straightforward
+
+## Suggested next development directions
+
+Potential next steps include:
+
+- stricter derivation-to-code alignment for the weighting operator
+- parameter studies for Gaussian width selection
+- quantitative energy-concentration metrics
+- comparison with SST, SET, or other sharpened time-frequency methods
+- support for real experimental signals
+
+## Maintainer
+
+Maintained by **jiangnan**.
 
 ## License
 
-This repository is intended to use the MIT License.
+Released under the **MIT License**.
